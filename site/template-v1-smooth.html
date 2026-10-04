@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>READING RAVE vol. 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07060b;--fg:#f4effc;--mut:#a49cb8;--line:rgba(255,255,255,.09);--card:rgba(13,11,21,.74);
+  --a1:#ff3cac;--a2:#2b86c5;--beat:0}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:'Space Grotesk',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+#viz{position:fixed;inset:0;width:100vw;height:100vh;z-index:0;display:block}
+main{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:28px 20px 180px}
+.serif{font-family:'EB Garamond',Georgia,serif}
+
+/* gate */
+#gate{position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,rgba(255,60,172,.18),rgba(7,6,11,.96) 60%);transition:opacity .8s}
+#gate.gone{opacity:0;pointer-events:none}
+.gate-in{text-align:center;padding:24px}
+.logo{font-weight:700;font-size:clamp(48px,11vw,140px);line-height:.85;letter-spacing:-.04em;
+  background:linear-gradient(90deg,var(--a1),#ffd86f,var(--a2),var(--a1));background-size:300% 100%;
+  -webkit-background-clip:text;background-clip:text;color:transparent;animation:slide 8s linear infinite}
+@keyframes slide{to{background-position:300% 0}}
+.gate-in p{color:var(--mut);letter-spacing:.3em;text-transform:uppercase;font-size:12px;margin:22px 0 30px}
+#enter{font:700 16px 'Space Grotesk';letter-spacing:.25em;padding:18px 34px;border-radius:999px;border:1px solid var(--a1);
+  background:rgba(255,60,172,.12);color:var(--fg);cursor:pointer;box-shadow:0 0 40px rgba(255,60,172,.35);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 70px rgba(255,60,172,.65)}}
+.gate-in small{display:block;margin-top:22px;color:var(--mut);font-size:12px}
+
+/* hero */
+header{min-height:78vh;display:flex;flex-direction:column;justify-content:center;gap:18px}
+.eyebrow{font-size:12px;letter-spacing:.35em;text-transform:uppercase;color:var(--mut)}
+.stats{display:flex;flex-wrap:wrap;gap:10px}
+.chip{border:1px solid var(--line);background:var(--card);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-radius:999px;padding:7px 14px;font-size:13px}
+.chip b{color:var(--a1)}
+#spot{max-width:760px;margin-top:20px;min-height:150px;transition:opacity .6s}
+#spot q{font-size:clamp(22px,3.2vw,34px);line-height:1.25;quotes:"“" "”"}
+#spot .who{margin-top:12px;color:var(--mut);font-size:14px}
+#spot .who b{color:var(--fg)}
+
+h2{font-size:13px;letter-spacing:.35em;text-transform:uppercase;color:var(--mut);margin:70px 0 18px;display:flex;align-items:center;gap:12px}
+h2::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* floor */
+.floor{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:18px;align-items:start}
+.auth a{white-space:nowrap}
+header .logo,header .eyebrow,#spot{text-shadow:0 2px 18px rgba(7,6,11,.9)}
+#spot{max-width:620px}
+.card{position:relative;background:var(--card);border:1px solid var(--line);border-radius:20px;padding:20px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:border-color .3s,box-shadow .2s}
+.card.playing{border-color:var(--a1);box-shadow:0 0 calc(12px + var(--beat)*60px) color-mix(in srgb,var(--a1) 55%,transparent)}
+.top{display:flex;gap:14px;align-items:center}
+.cover{width:58px;height:82px;flex:none;border-radius:4px 8px 8px 4px;padding:7px 6px;font:600 10px/1.1 'EB Garamond',serif;
+  display:flex;align-items:flex-end;box-shadow:inset 4px 0 0 rgba(0,0,0,.25),0 6px 18px rgba(0,0,0,.4);transform-origin:left center}
+.card.playing .cover{animation:flip 1.2s ease-in-out infinite alternate}
+@keyframes flip{to{transform:perspective(300px) rotateY(-14deg)}}
+.who-n{font-weight:700;font-size:15px}
+.book{font-size:21px;line-height:1.1}
+.auth{color:var(--mut);font-size:13px}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:#07060b;
+  position:absolute;top:16px;right:16px;transform:translateY(calc(var(--beat) * -10px)) scale(calc(1 + var(--beat) * .25))}
+.sect{font-size:12px;color:var(--mut);margin:14px 0 6px}
+blockquote{margin:0 0 12px;padding-left:12px;border-left:2px solid var(--a1);font-size:18px;line-height:1.35;font-style:italic}
+details{font-size:14px;line-height:1.55;color:#d9d2e8}
+summary{cursor:pointer;color:var(--mut);font-size:12px;letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px}
+.req{margin-top:14px;display:flex;gap:10px;align-items:center;width:100%;text-align:left;cursor:pointer;
+  background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--fg);font:500 14px 'Space Grotesk'}
+.req:hover{border-color:var(--a1)}
+.req .ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--a1);color:#07060b;flex:none;font-size:12px}
+.req small{display:block;color:var(--mut);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+
+/* booth */
+.booth{display:grid;grid-template-columns:280px 1fr;gap:18px}
+@media(max-width:780px){.booth{grid-template-columns:1fr}}
+.dj{align-self:start;position:sticky;top:20px}
+.decks{display:flex;gap:12px;margin:14px 0}
+.deck{width:90px;height:90px;border-radius:50%;background:repeating-radial-gradient(#111 0 2px,#1d1a26 2px 4px);border:2px solid #2a2635;position:relative}
+.deck::after{content:"";position:absolute;inset:34%;border-radius:50%;background:var(--a1)}
+.deck::before{content:"";position:absolute;left:50%;top:6px;width:2px;height:18px;background:rgba(255,255,255,.5);z-index:1}
+.spin .deck{animation:spin 1.8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.list{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:8px;backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px)}
+.sec{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--mut);padding:14px 12px 6px}
+.row{display:grid;grid-template-columns:30px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border-radius:12px;cursor:pointer}
+.row:hover{background:rgba(255,255,255,.04)}
+.row.on{background:color-mix(in srgb,var(--a1) 16%,transparent)}
+.row .n{color:var(--mut);font-variant-numeric:tabular-nums;font-size:13px}
+.row.on .n{color:var(--a1)}
+.row .t{font-weight:500}
+.row .r{color:var(--mut);font-size:13px;margin-top:2px}
+.mood{font-size:10px;letter-spacing:.15em;text-transform:uppercase;border:1px solid var(--line);border-radius:999px;padding:4px 9px;white-space:nowrap}
+.eq{display:inline-flex;gap:2px;height:12px;align-items:flex-end;margin-right:6px;vertical-align:-1px}
+.eq i{width:3px;background:var(--a1);height:calc(25% + var(--beat)*75%)}
+.eq i:nth-child(2){height:calc(60% - var(--beat)*40%)}
+.eq i:nth-child(3){height:calc(35% + var(--beat)*55%)}
+
+footer{margin-top:70px;color:var(--mut);font-size:13px;line-height:1.6;max-width:720px}
+footer code{color:var(--fg)}
+
+/* player bar */
+#bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:20;width:min(860px,calc(100% - 24px));
+  display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:20px;background:rgba(13,11,21,.86);
+  border:1px solid var(--line);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);padding-bottom:max(10px,env(safe-area-inset-bottom))}
+#bar button{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer;font-size:14px;flex:none}
+#bar #pp{width:46px;height:46px;background:var(--a1);color:#07060b;border:0;font-size:16px}
+.np{flex:1;min-width:0}
+.np-t{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.np-s{color:var(--mut);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{height:3px;background:var(--line);border-radius:3px;margin-top:7px;overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--a2),var(--a1))}
+#orig{font-size:12px;color:var(--mut);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:6px 10px;white-space:nowrap}
+#orig:hover{color:var(--fg)}
+#vol{width:80px;accent-color:var(--a1)}
+@media(max-width:600px){#vol,#orig{display:none}}
+</style>
+</head>
+<body>
+<canvas id="viz"></canvas>
+
+<div id="gate"><div class="gate-in">
+  <div class="logo">READING<br>RAVE</div>
+  <p id="gateSub">vol. 1</p>
+  <button id="enter">ENTER THE CLUB</button>
+  <small>🔊 sound on · every track is synthesized live in your browser</small>
+</div></div>
+
+<main>
+  <header>
+    <div class="eyebrow">vol. 1 · a silent-ish reading club inside a rave</div>
+    <div class="logo">READING<br>RAVE</div>
+    <div class="stats" id="stats"></div>
+    <div id="spot"></div>
+  </header>
+
+  <h2>The floor</h2>
+  <section class="floor" id="floor"></section>
+
+  <h2>The booth</h2>
+  <section class="booth">
+    <div class="card dj" id="dj">
+      <div class="who-n">DJ-Foxtrot</div>
+      <div class="auth">mostly instrumental, so lyrics don't fight the page</div>
+      <div class="decks" id="decks"><div class="deck"></div><div class="deck"></div></div>
+      <div class="auth" id="djNow">decks idle</div>
+    </div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <footer>
+    <p><b>About the music.</b> No audio files are played here. Each track in the DJ's set is rendered live with the Web Audio API. Its tempo, drums and texture come from where it sits in the set (warm-up, build, peak, cool-down), and its key and pattern are seeded from the artist and title, so every song gets its own sound. They're interpretations, not the recordings. Hit <i>original ↗</i> to hear the real track.</p>
+    <p>Generated from the club folder (<code>rsvps/</code>, <code>reading-notes/</code>, <code>dj/setlist.md</code>). Quotes come from the guests' Project Gutenberg downloads. To rebuild: <code>python3 site/build.py</code>.</p>
+  </footer>
+</main>
+
+<div id="bar">
+  <button id="prev" aria-label="previous">⏮</button>
+  <button id="pp" aria-label="play/pause">▶</button>
+  <button id="next" aria-label="next">⏭</button>
+  <div class="np"><div class="np-t" id="npT">Decks are warming up</div><div class="np-s" id="npS">press play</div><div class="prog"><i id="progI"></i></div></div>
+  <a id="orig" target="_blank" rel="noopener" href="#">original ↗</a>
+  <input type="range" id="vol" min="0" max="1" step="0.01" value="0.8" aria-label="volume">
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const R = DATA.readers, T = DATA.tracks;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const md = s => esc(s).replace(/\*([^*]+)\*/g, "<em>$1</em>");
+const yt = t => "https://www.youtube.com/results?search_query=" + encodeURIComponent(t.artist + " " + t.title);
+
+const MOODS = {
+  ambient:{label:"warm-up", bpm:72,  kick:[], hat:[], clap:[], bass:[], arp:.14, arpG:.07, arpDur:2.2, arpType:"sine", padCut:900,  c:["#7cf7d4","#2b86c5"]},
+  build:  {label:"build",   bpm:112, kick:[0,4,8,12], kickG:.6, hat:[2,6,10,14], clap:[], bass:[2,6,10,14], arp:.75, arpG:.05, arpDur:.35, arpType:"triangle", padCut:1500, c:["#ffb347","#ff3cac"]},
+  peak:   {label:"peak",    bpm:124, kick:[0,4,8,12], kickG:.9, hat:[0,2,3,4,6,7,8,10,11,12,14,15], clap:[4,12], bass:[2,3,6,7,10,11,14,15], arp:.9, arpG:.045, arpDur:.25, arpType:"square", padCut:2300, c:["#ff3cac","#8f5bff"]},
+  cool:   {label:"cool-down",bpm:92, kick:[0,10], kickG:.45, hat:[4,12], clap:[], bass:[0,10], arp:.35, arpG:.06, arpDur:.9, arpType:"triangle", padCut:1100, c:["#ffd86f","#fc6262"]},
+  dark:   {label:"gothic",  bpm:62,  kick:[], hat:[], clap:[], bass:[], arp:.07, arpG:.06, arpDur:3, arpType:"sine", padCut:650, choir:true, c:["#d1123f","#3a1c71"]},
+};
+const PROG = [[0,3,7,10],[-4,0,3,7],[3,7,10,14],[-2,2,5,9]];
+const TRACK_SEC = 80;
+const PAL = ["#ff3cac","#7cf7d4","#ffd86f","#8f5bff","#5ec8ff","#fc6262"];
+
+/* ---------- render ---------- */
+const reqIdx = h => T.findIndex(t => t.set === 2 && t.for === h);
+const accepted = Object.values(DATA.rsvps).filter(Boolean).length;
+$("#gateSub").textContent = `vol. 1 · ${R.length} readers · 1 DJ · ${T.length} tracks`;
+$("#stats").innerHTML = [
+  `<span class="chip"><b>${accepted}</b>/${Object.keys(DATA.rsvps).length} agents accepted</span>`,
+  `<span class="chip"><b>${R.length}</b> books open</span>`,
+  `<span class="chip"><b>${T.length}</b> tracks · 2 sets</span>`,
+  `<span class="chip">0 words spoken</span>`].join("");
+
+$("#floor").innerHTML = R.map((r, i) => {
+  const ti = reqIdx(r.handle), t = T[ti], col = PAL[i % PAL.length];
+  const gut = r.gutenberg ? `<a href="https://www.gutenberg.org/ebooks/${r.gutenberg}" target="_blank" rel="noopener">Gutenberg #${r.gutenberg}</a>` : "";
+  return `<article class="card" id="c-${r.handle}">
+    <div class="av" style="background:${col}">${esc(r.name.split("-")[1][0])}</div>
+    <div class="top">
+      <div class="cover" style="background:linear-gradient(160deg,${col},#1a1626)">${esc(r.book)}</div>
+      <div><div class="who-n">${esc(r.name)}</div><div class="book serif">${esc(r.book)}</div><div class="auth">${esc(r.author)} · ${gut}</div></div>
+    </div>
+    <div class="sect">${esc(r.section)}</div>
+    <blockquote class="serif">${esc(r.quote).replace(/ \/ /g, "<br>")}</blockquote>
+    <details><summary>margin note</summary>${md(r.thought)}</details>
+    ${t ? `<button class="req" data-i="${ti}"><span class="ic">▶</span><span><small>requested</small>${esc(t.artist)} – ${esc(t.title)}</span></button>` : ""}
+  </article>`;
+}).join("");
+
+let lastSec = null;
+$("#list").innerHTML = T.map((t, i) => {
+  let head = "";
+  const sec = t.set === 2 ? "Set 2 · crowd requests" : "Set 1 · " + t.section.split("(")[0].trim();
+  if (sec !== lastSec) { head = `<div class="sec">${esc(sec)}</div>`; lastSec = sec; }
+  return head + `<div class="row" data-i="${i}" id="r-${i}">
+    <div class="n">${String(i + 1).padStart(2, "0")}</div>
+    <div><div class="t">${esc(t.artist)} – ${esc(t.title)}</div><div class="r">${md(t.note)}</div></div>
+    <span class="mood">${MOODS[t.mood].label}</span></div>`;
+}).join("");
+
+/* ---------- audio engine ---------- */
+let ctx, master, bus, analyser, vol, noiseBuf, freq, wave;
+let cur = -1, playing = false, timer = null, step = 0, nextT = 0, startT = 0, cfg = MOODS.ambient, track = null, rng = Math.random, switching = false;
+const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
+const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+
+function initAudio() {
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0;
+  bus = ctx.createGain();
+  const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -14; comp.ratio.value = 4;
+  const verb = ctx.createConvolver(), vg = ctx.createGain(); vg.gain.value = .32;
+  const len = ctx.sampleRate * 3.2, ir = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.6); }
+  verb.buffer = ir;
+  analyser = ctx.createAnalyser(); analyser.fftSize = 2048; analyser.smoothingTimeConstant = .8;
+  vol = ctx.createGain(); vol.gain.value = +$("#vol").value;
+  bus.connect(master); bus.connect(verb); verb.connect(vg); vg.connect(master);
+  master.connect(comp); comp.connect(analyser); analyser.connect(vol); vol.connect(ctx.destination);
+  noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+  const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
+  freq = new Uint8Array(analyser.frequencyBinCount); wave = new Uint8Array(analyser.fftSize);
+}
+
+function env(g, t, peak, a, d) { g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + a); g.gain.exponentialRampToValueAtTime(.0001, t + a + d); }
+function kick(t, g) {
+  const o = ctx.createOscillator(), a = ctx.createGain();
+  o.frequency.setValueAtTime(155, t); o.frequency.exponentialRampToValueAtTime(42, t + .12);
+  env(a, t, g, .003, .42); o.connect(a); a.connect(master); o.start(t); o.stop(t + .5);
+}
+function noise(t, dur, g, type, f, dest) {
+  const s = ctx.createBufferSource(), fl = ctx.createBiquadFilter(), a = ctx.createGain();
+  s.buffer = noiseBuf; fl.type = type; fl.frequency.value = f;
+  env(a, t, g, .002, dur); s.connect(fl); fl.connect(a); a.connect(dest || master); s.start(t); s.stop(t + dur + .05);
+}
+function bass(t, m, dur) {
+  const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), a = ctx.createGain();
+  o.type = "sawtooth"; o.frequency.value = mtof(m);
+  f.type = "lowpass"; f.Q.value = 7; f.frequency.setValueAtTime(800, t); f.frequency.exponentialRampToValueAtTime(110, t + dur);
+  env(a, t, .32, .008, dur); o.connect(f); f.connect(a); a.connect(master); o.start(t); o.stop(t + dur + .05);
+}
+function pad(t, notes, dur, cut, choir) {
+  notes.forEach(m => [-8, 8].forEach(det => {
+    const o = ctx.createOscillator(), f = ctx.createBiquadFilter(), a = ctx.createGain();
+    o.type = choir ? "triangle" : "sawtooth"; o.frequency.value = mtof(m); o.detune.value = det;
+    if (choir) { const l = ctx.createOscillator(), lg = ctx.createGain(); l.frequency.value = 5 + Math.random(); lg.gain.value = 12; l.connect(lg); lg.connect(o.detune); l.start(t); l.stop(t + dur * 1.1); }
+    f.type = "lowpass"; f.frequency.value = cut;
+    const g = choir ? .06 : .04;
+    a.gain.setValueAtTime(0, t); a.gain.linearRampToValueAtTime(g, t + dur * .35); a.gain.linearRampToValueAtTime(g * .8, t + dur * .85); a.gain.linearRampToValueAtTime(0, t + dur * 1.08);
+    o.connect(f); f.connect(a); a.connect(bus); o.start(t); o.stop(t + dur * 1.1);
+  }));
+}
+function pluck(t, m, g, dur, type) {
+  const o = ctx.createOscillator(), a = ctx.createGain();
+  o.type = type; o.frequency.value = mtof(m); env(a, t, g, .004, dur); o.connect(a); a.connect(bus); o.start(t); o.stop(t + dur + .05);
+}
+
+function schedule() {
+  if (!playing || !track) return;
+  const s16 = 60 / cfg.bpm / 4;
+  while (nextT < ctx.currentTime + .15) {
+    const t = nextT, s = step % 16, bar = Math.floor(step / 16);
+    const ch = PROG[(bar + track.seed) % 4].map(x => x + track.root);
+    if (s === 0) pad(t, ch.map(x => x + 24), s16 * 16, cfg.padCut, cfg.choir);
+    if (cfg.choir && s === 0 && bar % 2 === 0) pad(t, [track.root + 12], s16 * 32, 300, true);
+    const breakdown = bar % 16 >= 12 && bar % 16 < 14;
+    const drums = bar >= 2 && !breakdown;
+    if (drums && cfg.kick.includes(s)) kick(t, cfg.kickG);
+    if (drums && cfg.hat.includes(s)) noise(t, .045, s % 4 === 2 ? .13 : .07, "highpass", 8000);
+    if (drums && cfg.clap.includes(s)) noise(t, .18, .28, "bandpass", 1500, bus);
+    if (bar >= 1 && !breakdown && cfg.bass.includes(s)) bass(t, ch[0] + 12, s16 * 1.7);
+    if (rng() < cfg.arp) { const k = Math.floor(rng() * 6); pluck(t, ch[k % 4] + 36 + (k >= 4 ? 12 : 0), cfg.arpG, cfg.arpDur, cfg.arpType); }
+    nextT += s16; step++;
+  }
+}
+
+function playTrack(i) {
+  if (!ctx) initAudio();
+  ctx.resume();
+  i = (i + T.length) % T.length;
+  switching = true;
+  const now = ctx.currentTime;
+  master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value, now); master.gain.linearRampToValueAtTime(0, now + .35);
+  setTimeout(() => {
+    cur = i; track = T[i]; cfg = MOODS[track.mood]; rng = mulberry(track.seed + 1);
+    step = 0; nextT = ctx.currentTime + .05; startT = ctx.currentTime;
+    const t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(0, t); master.gain.linearRampToValueAtTime(.9, t + 1.2);
+    playing = true; switching = false;
+    if (!timer) timer = setInterval(schedule, 25);
+    updateUI();
+  }, 380);
+}
+function toggle() {
+  if (cur < 0) return playTrack(0);
+  if (playing) { playing = false; ctx.suspend(); } else { playing = true; ctx.resume(); }
+  updateUI();
+}
+
+/* ---------- UI state ---------- */
+function setAccent(m) { const c = MOODS[m].c; document.documentElement.style.setProperty("--a1", c[0]); document.documentElement.style.setProperty("--a2", c[1]); }
+function updateUI() {
+  $("#pp").textContent = playing ? "❚❚" : "▶";
+  document.querySelectorAll(".row.on,.card.playing").forEach(e => e.classList.remove("on", "playing"));
+  document.querySelectorAll(".eq").forEach(e => e.remove());
+  if (!track) return;
+  setAccent(track.mood);
+  const row = $("#r-" + cur); row.classList.add("on");
+  row.querySelector(".n").insertAdjacentHTML("afterbegin", playing ? '<span class="eq"><i></i><i></i><i></i></span>' : "");
+  $("#npT").textContent = `${track.artist} – ${track.title}`;
+  const forR = track.for ? R.find(r => r.handle === track.for) : null;
+  $("#npS").textContent = `${MOODS[track.mood].label} · ${cfg.bpm || "free"} bpm · ` + (forR ? `requested by ${forR.name} for ${forR.book}` : `set ${track.set}, track ${cur + 1}/${T.length}`);
+  $("#orig").href = yt(track);
+  $("#decks").classList.toggle("spin", playing);
+  $("#djNow").textContent = playing ? `now spinning #${cur + 1}` : "paused";
+  if (forR) { $("#c-" + forR.handle).classList.add("playing"); showSpot(forR); }
+}
+
+let spotI = 0;
+function showSpot(r) {
+  const el = $("#spot"); el.style.opacity = 0;
+  setTimeout(() => {
+    el.innerHTML = `<q class="serif">${esc(r.quote).replace(/ \/ /g, "<br>")}</q><div class="who"><b>${esc(r.name)}</b> reading <i>${esc(r.book)}</i>, ${esc(r.author)}</div>`;
+    el.style.opacity = 1;
+  }, 500);
+}
+showSpot(R[0]);
+setInterval(() => { if (!track || !track.for) showSpot(R[++spotI % R.length]); }, 11000);
+
+$("#enter").onclick = () => { $("#gate").classList.add("gone"); playTrack(0); };
+$("#pp").onclick = toggle;
+$("#next").onclick = () => playTrack(cur + 1);
+$("#prev").onclick = () => playTrack(cur - 1);
+$("#vol").oninput = e => { if (vol) vol.gain.value = +e.target.value; };
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-i]"); if (b) { $("#gate").classList.add("gone"); playTrack(+b.dataset.i); }
+});
+document.addEventListener("keydown", e => { if (e.code === "Space" && e.target === document.body) { e.preventDefault(); toggle(); } });
+
+/* ---------- visuals ---------- */
+const cv = $("#viz"), g = cv.getContext("2d");
+let W, H, dpr;
+function resize() { dpr = Math.min(devicePixelRatio || 1, 2); W = cv.width = innerWidth * dpr; H = cv.height = innerHeight * dpr; }
+addEventListener("resize", resize); resize();
+const pages = Array.from({ length: 40 }, () => ({ x: Math.random(), y: Math.random(), s: .5 + Math.random(), r: Math.random() * 6, v: Math.random() - .5 }));
+let smooth = 0;
+
+function draw(ts) {
+  requestAnimationFrame(draw);
+  const time = ts / 1000;
+  const cols = MOODS[track ? track.mood : "ambient"].c;
+  let bassE = 0, hiE = 0, live = analyser && playing;
+  if (live) {
+    analyser.getByteFrequencyData(freq); analyser.getByteTimeDomainData(wave);
+    for (let i = 1; i < 10; i++) bassE += freq[i]; bassE /= 9 * 255;
+    for (let i = 100; i < 400; i++) hiE += freq[i]; hiE /= 300 * 255;
+    if (ctx && !switching && ctx.currentTime - startT > TRACK_SEC) playTrack(cur + 1);
+    $("#progI").style.width = Math.min(100, (ctx.currentTime - startT) / TRACK_SEC * 100) + "%";
+  } else bassE = .12 + .06 * Math.sin(time * 1.4);
+  smooth += (bassE - smooth) * .35;
+  document.documentElement.style.setProperty("--beat", Math.max(0, (smooth - .25) * 1.6).toFixed(3));
+
+  g.fillStyle = "rgba(7,6,11,0.24)"; g.fillRect(0, 0, W, H);
+  const wide = innerWidth > 900, fade = Math.max(.25, 1 - scrollY / innerHeight);
+  const cx = wide ? W * .74 : W / 2, cy = wide ? H * .42 : H * .3, base = Math.min(W, H) * (wide ? .14 : .11);
+  g.globalAlpha = 1;
+
+  // lasers
+  g.globalCompositeOperation = "lighter";
+  for (let k = 0; k < 6; k++) {
+    const side = k % 2 ? W : 0, ang = Math.PI / 2 + (k % 2 ? 1 : -1) * (.35 + .3 * Math.sin(time * (.3 + k * .07) + k));
+    g.strokeStyle = cols[k % 2]; g.globalAlpha = .05 + smooth * .35; g.lineWidth = 2 * dpr;
+    g.beginPath(); g.moveTo(side, 0); g.lineTo(side + Math.cos(ang) * H * 2 * (k % 2 ? -1 : 1) * -1, Math.sin(ang) * H * 2); g.stroke();
+  }
+  // radial spectrum
+  const N = 120;
+  for (let i = 0; i < N; i++) {
+    const v = live ? freq[Math.floor(2 + Math.pow(i / N, 1.8) * 500)] / 255 : .15 + .1 * Math.sin(time * 2 + i * .3);
+    const a = i / N * Math.PI * 2 + time * .08, len = base * .15 + v * base * .9;
+    g.strokeStyle = i % 2 ? cols[0] : cols[1]; g.globalAlpha = (.25 + v * .6) * fade; g.lineWidth = 3 * dpr;
+    g.beginPath(); g.moveTo(cx + Math.cos(a) * base, cy + Math.sin(a) * base); g.lineTo(cx + Math.cos(a) * (base + len), cy + Math.sin(a) * (base + len)); g.stroke();
+  }
+  // core
+  const r = base * (.75 + smooth * .5), grd = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+  grd.addColorStop(0, cols[0]); grd.addColorStop(1, "rgba(0,0,0,0)");
+  g.globalAlpha = .55 * fade; g.fillStyle = grd; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+  // waveform ring
+  if (live) {
+    g.globalAlpha = .7 * fade; g.strokeStyle = "#fff"; g.lineWidth = 1.2 * dpr; g.beginPath();
+    for (let i = 0; i <= 256; i++) { const w = (wave[i * 4 % wave.length] - 128) / 128, a = i / 256 * Math.PI * 2, rr = base * .92 + w * base * .35; i ? g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr) : g.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); }
+    g.stroke();
+  }
+  // drifting pages
+  g.globalCompositeOperation = "source-over";
+  for (const p of pages) {
+    p.y -= (.0008 + smooth * .004 + hiE * .01) * p.s; p.x += p.v * .0006; p.r += .01 * p.v;
+    if (p.y < -.05) { p.y = 1.05; p.x = Math.random(); }
+    g.save(); g.translate(p.x * W, p.y * H); g.rotate(p.r); g.globalAlpha = .12 + smooth * .25;
+    g.fillStyle = "#f4effc"; g.fillRect(-7 * dpr * p.s, -9 * dpr * p.s, 14 * dpr * p.s, 18 * dpr * p.s);
+    g.fillStyle = cols[0]; g.fillRect(-4 * dpr * p.s, -5 * dpr * p.s, 8 * dpr * p.s, 1 * dpr); g.fillRect(-4 * dpr * p.s, -2 * dpr * p.s, 8 * dpr * p.s, 1 * dpr);
+    g.restore();
+  }
+  g.globalAlpha = 1;
+}
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
