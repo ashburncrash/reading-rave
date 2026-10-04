@@ -339,7 +339,7 @@ function renderHour() {
     return `<button class="spine${h ? " out" : ""}" data-book="${j}" style="--c:${h ? RC[h[1] % RC.length] : "#3a3357"}">
       <span class="flag">${esc(flag(b.language))}</span><span class="st">${esc(b.book)}</span><span class="sa">${esc(b.author)}</span>${h ? `<span class="who">◀ ${esc(h[0].name.toUpperCase())}</span>` : ""}</button>`; }).join("");
 
-  if (track) { cur = T.findIndex(t => keyOf(t) === playingKey); updateUI(); }
+  if (track) { const k = T.findIndex(t => keyOf(t) === playingKey); if (k >= 0) { cur = k; if (front) front.idx = k; } updateUI(); }
 }
 
 /* ---------------- dialog (typewriter) ---------------- */
@@ -360,33 +360,36 @@ document.addEventListener("click", e => { const bk = e.target.closest("[data-boo
   const b = L[+bk.dataset.book], h = R.find(r => r.bookId === b.id);
   say(h || { ...b, name: "THE SHELF" }); $(".dialog").scrollIntoView({ block: "center", behavior: "smooth" }); });
 
-/* ---------------- audio engine ---------------- */
-let ctx, master, duck, bus, dry, verb, analyser, vol, noiseBuf, drive, kdrive, freq, dly, dlySend;
-let cur = -1, playing = false, timer = null, step = 0, nextT = 0, startT = 0, cfg = TPL.deep, track = null, rng = Math.random, switching = false;
+/* ---------------- audio engine: two decks + a mixer ----------------
+   Each track plays on its own deck (its own sidechain, drive, delay, EQ and fader). A transition
+   runs two decks at once on the shared AudioContext clock and crossfades them, the way a DJ mixes:
+   blend  - tempos within BEATMATCH_MAX: the new track enters beatmatched for MIX_BARS bars, the
+            faders cross on an equal-power curve, the basslines swap at the midpoint, then the
+            new track glides to its own tempo
+   echo   - tempos too far apart: the old track is filtered down and thrown into its delay while
+            the new one drops in on its own clock
+   quick  - you picked a track: it starts on the next beat with a 2.5s filtered crossfade
+   The synth functions below read the current deck through globals; use(d) switches them. */
+let ctx, mainIn, master, duck, bus, dry, verb, analyser, vol, noiseBuf, drive, kdrive, freq, dlySend;
+let cur = -1, playing = false, timer = null, step = 0, nextT = 0, startT = 0, cfg = TPL.deep, track = null, rng = Math.random, outro = false;
 let pat = {}, kicks = [], claps = [], beatCount = 0, bpm = 120, prog = PROGS.minor, progOff = 0;
+let decks = [], front = null;
+const MIX_BARS = 8, ECHO_BARS = 4, BEATMATCH_MAX = 10, QUICK_FADE = 2.5;
 const mtof = m => 440 * Math.pow(2, (m - 69) / 12);
 const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const shaper = k => { const c = new Float32Array(1024); for (let i = 0; i < 1024; i++) c[i] = Math.tanh((i / 512 - 1) * k); const w = ctx.createWaveShaper(); w.curve = c; return w; };
 
 function initAudio() {
   ctx = new (window.AudioContext || window.webkitAudioContext)();
-  master = ctx.createGain(); master.gain.value = 0;
-  duck = ctx.createGain(); dry = ctx.createGain(); bus = ctx.createGain();     // everything except the kick is sidechained via `duck`
-  dry.connect(duck); bus.connect(duck); duck.connect(master);
+  mainIn = ctx.createGain(); mainIn.gain.value = .9;
   verb = ctx.createConvolver(); const vg = ctx.createGain(); vg.gain.value = .26;
   const len = ctx.sampleRate * 2.4, ir = ctx.createBuffer(2, len, ctx.sampleRate);
   for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3); }
-  verb.buffer = ir; bus.connect(verb); verb.connect(vg); vg.connect(duck);
-  dly = ctx.createDelay(2); const fb = ctx.createGain(), dlf = ctx.createBiquadFilter();
-  fb.gain.value = .38; dlf.type = "lowpass"; dlf.frequency.value = 2600;
-  dly.connect(dlf); dlf.connect(fb); fb.connect(dly); dlf.connect(duck);
-  dlySend = ctx.createGain(); dlySend.gain.value = .25; dlySend.connect(dly);
-  drive = shaper(3.2); drive.connect(dry);
-  kdrive = shaper(4); const kg = ctx.createGain(); kg.gain.value = .7; kdrive.connect(kg); kg.connect(master);
+  verb.buffer = ir; verb.connect(vg); vg.connect(mainIn);
   const comp = ctx.createDynamicsCompressor(); comp.threshold.value = -10; comp.ratio.value = 5; comp.attack.value = .003; comp.release.value = .12;
   analyser = ctx.createAnalyser(); analyser.fftSize = 1024; analyser.smoothingTimeConstant = .7;
   vol = ctx.createGain(); vol.gain.value = +$("#vol").value;
-  master.connect(comp); comp.connect(analyser); analyser.connect(vol); vol.connect(ctx.destination);
+  mainIn.connect(comp); comp.connect(analyser); analyser.connect(vol); vol.connect(ctx.destination);
   noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
   const nd = noiseBuf.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
   freq = new Uint8Array(analyser.frequencyBinCount);
@@ -498,11 +501,13 @@ function playLead(t, ch, s, s16) {
   }
 }
 
-function schedule() {
-  if (!playing || !track) return;
-  const s16 = 60 / bpm / 4;
-  while (nextT < ctx.currentTime + .12) {
-    const s = step % 16, bar = Math.floor(step / 16), I = phraseInfo(bar);
+function scheduleStep() {
+  {
+    const s16 = 60 / bpm / 4;
+    const s = step % 16, bar = Math.floor(step / 16);
+    let I = phraseInfo(bar);
+    // a deck that is mixing out plays a clean outro: no breakdowns, risers, rolls or crashes
+    if (outro) I = { ...I, breakdown: false, roll: false, riserStart: false, drop: false };
     const t = nextT + (s % 2 ? cfg.swing * s16 : 0);
     const ch = prog[(Math.floor(bar / 2) + progOff) % 4].map(x => x + track.root);
     const padIntro = I.intro && cfg.intro === "pads", percIntro = I.intro && cfg.intro === "perc";
@@ -527,7 +532,7 @@ function schedule() {
     }
     if (I.roll && (s >= 8 || s % 2 === 0)) (cfg.snare ? snare : clap)(t, .1 + s * .015);
     if (I.riserStart && s === 0) riser(t, s16 * 16 * cfg.bd.length);
-    if ((I.p === 14 || bar === I.introBars) && s === 0) crash(t);
+    if (!outro && (I.p === 14 || bar === I.introBars) && s === 0) crash(t);
     // bass
     if (music) {
       const b = cfg.bass;
@@ -552,6 +557,29 @@ function schedule() {
   }
 }
 
+function schedule() {
+  if (!playing || !front) return;
+  const horizon = ctx.currentTime + .12;
+  for (let k = 0; k < decks.length; k++) {           // live length: a deck added mid-loop is scheduled this tick
+    const d = decks[k];
+    use(d);
+    while (nextT < horizon && nextT < d.stopAt) {
+      if (d.glide && step >= d.glide.at) glideStep(d);
+      if (d === front && !d.mixing && step > 0 && step % 16 === 0) {
+        const ni = (d.idx + 1) % T.length, match = Math.abs(nativeBpm(ni) - d.bpm) <= BEATMATCH_MAX;
+        if (step / 16 === TRACK_BARS - (match ? MIX_BARS : ECHO_BARS)) {
+          d.step = step; d.nextT = nextT;
+          beginMix(ni, nextT, match ? "blend" : "echo");
+          use(d);
+        }
+      }
+      scheduleStep();
+    }
+    d.step = step; d.nextT = nextT;
+  }
+  if (front) use(front);
+}
+
 function makePatterns() {
   const pick = a => a[Math.floor(rng() * a.length)];
   const sub = (a, p) => { const r = a.filter(() => rng() < p); return r.length ? r : [a[0]]; };
@@ -569,26 +597,129 @@ function makePatterns() {
   };
 }
 
+/* ---------------- decks & mixer ---------------- */
+const nativeBpm = i => { const t = T[i]; return M(t.mood).bpm + Math.round((mulberry(t.seed + 1)() - .5) * 4); };
+const stepNow = (d, now) => Math.max(0, d.step - (d.nextT - now) / (60 / d.bpm / 4));
+const stepTime = (d, k) => d.nextT - (d.step - k) * (60 / d.bpm / 4);
+const hold = (p, t) => { if (p.cancelAndHoldAtTime) p.cancelAndHoldAtTime(t); else p.cancelScheduledValues(t); };
+function curveTo(p, t0, dur, f) { hold(p, t0); p.setValueAtTime(f(0), t0); for (let k = 1; k <= 24; k++) p.linearRampToValueAtTime(f(k / 24), t0 + dur * k / 24); }
+
+function use(d) {
+  track = d.track; cfg = d.cfg; rng = d.rng; bpm = d.bpm; prog = d.prog; progOff = d.progOff; pat = d.pat;
+  step = d.step; nextT = d.nextT; startT = d.startT; outro = d.outro;
+  master = d.out; duck = d.duck; dry = d.dry; bus = d.bus; drive = d.drive; kdrive = d.kdrive; dlySend = d.send;
+}
+
+function makeDeck(i, at, bpmOverride) {
+  const tr = T[i], c = M(tr.mood), r = mulberry(tr.seed + 1);
+  const d = { idx: i, track: tr, cfg: c, rng: r, stopAt: Infinity, outro: false, mixing: false, glide: null, fadeEnd: Infinity };
+  d.native = c.bpm + Math.round((r() - .5) * 4);     // same rng order as before, so every track keeps its sound
+  d.bpm = bpmOverride || d.native;
+  d.prog = PROGS[c.prog[Math.floor(r() * c.prog.length)]]; d.progOff = Math.floor(r() * 4);
+  // channel strip: [drums | sidechained dry+bus | kick drive | delay return] -> out -> HP (bass kill) -> LP (sweep) -> fader -> main
+  d.fader = ctx.createGain(); d.fader.gain.value = 0;
+  d.lp = ctx.createBiquadFilter(); d.lp.type = "lowpass"; d.lp.frequency.value = 18000; d.lp.Q.value = .9;
+  d.hp = ctx.createBiquadFilter(); d.hp.type = "highpass"; d.hp.frequency.value = 12;
+  d.out = ctx.createGain();
+  d.out.connect(d.hp); d.hp.connect(d.lp); d.lp.connect(d.fader); d.fader.connect(mainIn);
+  d.duck = ctx.createGain(); d.dry = ctx.createGain(); d.bus = ctx.createGain();
+  d.dry.connect(d.duck); d.bus.connect(d.duck); d.duck.connect(d.out); d.bus.connect(verb);
+  d.drive = shaper(3.2); d.drive.connect(d.dry);
+  d.kdrive = shaper(4); const kg = ctx.createGain(); kg.gain.value = .7; d.kdrive.connect(kg); kg.connect(d.out);
+  d.dly = ctx.createDelay(2); d.fb = ctx.createGain(); const dlf = ctx.createBiquadFilter();
+  d.fb.gain.value = .38; dlf.type = "lowpass"; dlf.frequency.value = 2600;
+  d.dly.connect(dlf); dlf.connect(d.fb); d.fb.connect(d.dly); dlf.connect(d.hp);
+  d.send = ctx.createGain(); d.send.gain.value = c.delay; d.send.connect(d.dly);
+  d.dly.delayTime.value = 60 / d.bpm * .75;
+  d.nodes = [d.fader, d.lp, d.hp, d.out, d.duck, d.dry, d.bus, d.drive, d.kdrive, kg, d.dly, d.fb, dlf, d.send];
+  d.step = 0; d.nextT = at; d.startT = at;
+  use(d); makePatterns(); d.pat = pat;
+  return d;
+}
+
+function glideStep(d) {                              // after a beatmatched blend, ease to the track's own tempo
+  const g = d.glide, k = Math.min(1, (step - g.at) / g.steps);
+  bpm = d.bpm = g.from + (g.to - g.from) * k;
+  if (step % 16 === 0) d.dly.delayTime.setTargetAtTime(60 / bpm * .75, nextT, .3);
+  if (k >= 1) d.glide = null;
+}
+
+function xfade(out, inc, at, dur) {                  // equal-power: loudness stays level through the blend
+  const g0 = Math.min(1, Math.max(0, out.fader.gain.value)), s0 = Math.sqrt(Math.max(0, 1 - g0 * g0));
+  curveTo(out.fader.gain, at, dur, x => g0 * Math.cos(x * Math.PI / 2));
+  // incoming starts at the level the outgoing deck is missing (matters when next is mashed mid-fade)
+  curveTo(inc.fader.gain, at, dur, x => Math.sqrt(s0 * s0 + (1 - s0 * s0) * Math.sin(x * Math.PI / 2) ** 2));
+  out.fadeEnd = at + dur;
+}
+function trim(at, dur, depth) {                      // two beatmatched kicks stack: pull the main bus down ~2dB mid-blend
+  curveTo(mainIn.gain, at, dur, x => .9 * (1 - depth * Math.sin(x * Math.PI)));
+}
+
+function retire(d) {                                 // free the strip once its fader and tails are silent
+  if (d.retired) return; d.retired = true;
+  const check = () => {
+    if (ctx.currentTime < d.fadeEnd + 3) return setTimeout(check, 500);
+    d.nodes.forEach(n => { try { n.disconnect(); } catch (e) {} });
+    decks = decks.filter(x => x !== d);
+  };
+  setTimeout(check, 500);
+}
+
+function killDeck(d, t) {                            // a newer mix overrides one still in flight
+  d.killed = true; d.stopAt = Math.min(d.stopAt, t);
+  hold(d.fader.gain, t); d.fader.gain.setTargetAtTime(0, t, .08);
+  d.fadeEnd = Math.min(d.fadeEnd, t + .5); retire(d);
+}
+
+function beginMix(i, at, style) {
+  const out = front, now = ctx.currentTime;
+  decks.filter(x => x !== out && !x.killed).forEach(x => killDeck(x, Math.max(now, at - .05)));
+  out.mixing = true; out.outro = true; out.style = style;
+  const barLen = 16 * 60 / out.bpm / 4;
+  let inc;
+  if (style === "blend") {
+    const dur = MIX_BARS * barLen, mid = at + dur / 2;
+    inc = makeDeck(i, at, out.bpm);                  // beatmatched: same tempo, same downbeat
+    inc.glide = { at: MIX_BARS * 16, steps: 8 * 16, from: out.bpm, to: inc.native };
+    xfade(out, inc, at, dur);
+    // bass swap: the new track comes in thin, then the low end changes hands halfway through
+    inc.hp.frequency.setValueAtTime(240, now); inc.hp.frequency.setValueAtTime(240, mid - barLen / 2); inc.hp.frequency.exponentialRampToValueAtTime(12, mid);
+    out.hp.frequency.setValueAtTime(12, mid - barLen / 2); out.hp.frequency.exponentialRampToValueAtTime(240, mid);
+    out.stopAt = at + dur;
+    trim(at, dur, .22);
+  } else if (style === "echo") {
+    const inAt = at + 2 * barLen;
+    out.lp.frequency.setValueAtTime(18000, at); out.lp.frequency.exponentialRampToValueAtTime(380, at + 4 * barLen);
+    out.send.gain.setValueAtTime(out.cfg.delay, inAt); out.send.gain.linearRampToValueAtTime(.75, at + 3 * barLen);
+    out.fb.gain.setValueAtTime(.38, inAt); out.fb.gain.linearRampToValueAtTime(.66, at + 3 * barLen);
+    out.stopAt = at + 3 * barLen;                    // last bar is echoes only
+    inc = makeDeck(i, inAt);                         // new track drops in on its own clock
+    xfade(out, inc, inAt, 2 * barLen + 1.5);
+  } else {
+    inc = makeDeck(i, at);
+    xfade(out, inc, at, QUICK_FADE);
+    out.lp.frequency.setValueAtTime(18000, at); out.lp.frequency.exponentialRampToValueAtTime(500, at + QUICK_FADE);
+    out.stopAt = at + QUICK_FADE;
+  }
+  decks.push(inc); front = inc; cur = i;
+  retire(out);
+  use(inc); updateUI();
+}
+
 function playTrack(i) {
   if (!ctx) initAudio();
-  ctx.resume();
+  ctx.resume(); playing = true;
   i = (i + T.length) % T.length;
-  switching = true;
   const now = ctx.currentTime;
-  master.gain.cancelScheduledValues(now); master.gain.setValueAtTime(master.gain.value, now); master.gain.linearRampToValueAtTime(0, now + .3);
-  setTimeout(() => {
-    cur = i; track = T[i]; cfg = M(track.mood); rng = mulberry(track.seed + 1);
-    bpm = cfg.bpm + Math.round((rng() - .5) * 4);
-    prog = PROGS[cfg.prog[Math.floor(rng() * cfg.prog.length)]]; progOff = Math.floor(rng() * 4);
-    makePatterns();
-    dly.delayTime.setValueAtTime(60 / bpm * .75, ctx.currentTime); dlySend.gain.setValueAtTime(cfg.delay, ctx.currentTime);
-    step = 0; nextT = ctx.currentTime + .05; startT = nextT; kicks = []; claps = [];
-    const t = ctx.currentTime; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(0, t); master.gain.linearRampToValueAtTime(.9, t + .4);
-    duck.gain.cancelScheduledValues(t); duck.gain.setValueAtTime(1, t);
-    playing = true; switching = false;
-    if (!timer) timer = setInterval(schedule, 25);
-    updateUI();
-  }, 330);
+  if (!front) {
+    const d = makeDeck(i, now + .06);
+    d.fader.gain.setValueAtTime(0, now); d.fader.gain.linearRampToValueAtTime(1, now + .3);
+    decks.push(d); front = d; cur = i; use(d); updateUI();
+  } else {
+    const out = front, k = Math.ceil(stepNow(out, now + .06) / 4) * 4;    // land on the next beat
+    beginMix(i, Math.max(now + .06, stepTime(out, k)), "quick");
+  }
+  if (!timer) timer = setInterval(schedule, 25);
 }
 function toggle() {
   if (cur < 0) return start(0);
@@ -607,7 +738,7 @@ function updateUI() {
   $("#r-" + cur)?.classList.add("on");
   $("#npT").textContent = `${track.artist} – ${track.title}`;
   const forR = track.for ? R.find(r => r.handle === track.for) : null;
-  $("#npS").textContent = `${cfg.label} · ${bpm} BPM · ` + (forR ? `REQ BY ${forR.name.toUpperCase()}` : `${track.section.split("(")[0].trim().toUpperCase()} · ${cur + 1}/${T.length}`);
+  $("#npS").textContent = `${cfg.label} · ${Math.round(bpm)} BPM · ` + (forR ? `REQ BY ${forR.name.toUpperCase()}` : `${track.section.split("(")[0].trim().toUpperCase()} · ${cur + 1}/${T.length}`);
   $("#orig").href = yt(track);
   $("#djNow").textContent = playing ? `▶ NOW SPINNING #${cur + 1} · ${cfg.label}` : "❚❚ PAUSED";
   if (forR) { $("#c-" + forR.handle)?.classList.add("playing"); say(forR); }
@@ -637,6 +768,7 @@ function discOn(g, cx, cy, rx, ry, f) { for (let y = -ry; y <= ry; y++) for (let
 /* DJ pose: what Foxtrot's paws are doing on this beat */
 function djPose(live, I, beat, fr) {
   if (!live) return (fr >> 4) % 3 === 0 ? "headphone" : "decks";
+  if (I.mixing) return beat % 4 < 2 ? "mixer" : "headphone";      // riding the crossfader, cueing the next record
   if (I.drop) return "handsUp";
   if (I.breakdown) return I.roll ? (beat % 2 ? "pumpR" : "pumpL") : "headphone";
   if (I.intro) return beat % 8 < 4 ? "decks" : "mixer";
@@ -685,7 +817,7 @@ function drawDJ(now, live, pulse, clapP, I, beat, fr, c0, c1) {
   [[sL, T2[0]], [sR, T2[1]]].forEach(([s, e]) => { lineOn(g, s[0], s[1], e[0], e[1], P.orange, false, 2); g.fillStyle = P.white; g.fillRect(e[0], e[1], 2, 2); });
   // table + decks
   g.fillStyle = P.dgray; g.fillRect(0, 29, W2, 2); g.fillStyle = "#2b2733"; g.fillRect(0, 31, W2, 13);
-  const spin = live ? (now - startT) * bpm / 60 * Math.PI * .9 : now;
+  const spin = live ? stepNow(front, now) / 4 * Math.PI * .9 : now;
   [[12, 35], [52, 35]].forEach(([cx, cy], j) => {
     discOn(g, cx, cy, 10, 4, (x, y) => { const r = x * x / 100 + y * y / 16; return r < .12 ? (j ? c1 : c0) : r < .75 ? P.k : P.lgray; });
     const a = spin + j * 2; g.fillStyle = P.white; g.fillRect(Math.round(cx + Math.cos(a) * 7), Math.round(cy + Math.sin(a) * 2.6), 2, 1);
@@ -729,9 +861,9 @@ function draw(ts) {
     pulse = k < 0 ? 0 : Math.exp(-(now - k) * 7);
     let cl = -1; for (const t of claps) if (t <= now) cl = t; claps = claps.filter(t => t > now - 1);
     clapP = cl < 0 ? 0 : Math.exp(-(now - cl) * 10);
-    bar = Math.max(0, (now - startT) / (beatLen * 4)); I = phraseInfo(Math.floor(bar));
-    beat = Math.floor(Math.max(0, now - startT) / beatLen);
-    if (!switching && bar >= TRACK_BARS) playTrack(cur + 1);
+    const sN = stepNow(front, now);
+    bar = sN / 16; beat = Math.floor(sN / 4);
+    I = { ...phraseInfo(Math.floor(bar)), mixing: decks.some(d => d !== front && !d.killed && now < d.fadeEnd) };
     const filled = Math.floor(bar / TRACK_BARS * 16);
     document.querySelectorAll("#prog i").forEach((s, i) => s.classList.toggle("f", i <= filled));
     analyser.getByteFrequencyData(freq);
@@ -821,6 +953,7 @@ function draw(ts) {
     txt(g, `${cfg.label} ${bpm}`, 3, 3, c0);
     if (I.breakdown) txt(g, "BREAKDOWN", W - txtW("BREAKDOWN") - 3, 3, fr % 2 ? P.white : c1);
     if (I.drop) txt(g, "DROP!", W - txtW("DROP!") - 3, 3, fr % 2 ? P.yellow : P.red);
+    else if (I.mixing && !I.breakdown) txt(g, "MIXING", W - txtW("MIXING") - 3, 3, fr % 4 < 2 ? c0 : P.white);
   } else if (fr % 8 < 5) txt(g, "PRESS ENTER", (W - txtW("PRESS ENTER")) / 2, 36, P.white);
 }
 renderHour(); say(R[0]);
